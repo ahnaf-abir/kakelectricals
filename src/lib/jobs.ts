@@ -34,3 +34,4 @@ export function formatJobDate(d: string | null) {
   if (!d) return "";
   return new Date(d + "T00:00:00").toLocaleDateString("en-AU", { month: "short", year: "numeric" });
 }
+
