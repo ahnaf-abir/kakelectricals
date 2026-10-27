@@ -1,6 +1,27 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Phone, Star, Zap, Lightbulb, Plug, Camera, ShieldAlert, Wrench, Home, Building2, Clock, BadgeCheck, MapPin } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Phone, Star, Zap, Lightbulb, Plug, Camera, ShieldAlert, Wrench, Home, Building2, Clock, BadgeCheck, MapPin, ArrowRight } from "lucide-react";
 import hero from "@/assets/hero.jpg";
+import { jobsQuery } from "@/lib/jobs";
+import { JobCard } from "@/components/JobCard";
+import { QuoteForm } from "@/components/QuoteForm";
+
+function RecentWork() {
+  const { data } = useQuery(jobsQuery(3));
+  if (!data?.length) return null;
+  return (
+    <section id="work" className="mx-auto max-w-6xl px-5 py-20">
+      <p className="text-sm font-semibold uppercase tracking-widest text-primary">Our work</p>
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+        <h2 className="text-display text-4xl sm:text-5xl">Recent jobs.</h2>
+        <Link to="/work" className="inline-flex items-center gap-1 font-semibold">See all <ArrowRight className="h-4 w-4" /></Link>
+      </div>
+      <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {data.map((j) => <JobCard key={j.id} job={j} />)}
+      </div>
+    </section>
+  );
+}
 
 const TITLE = "K A K Electricals | 24/7 Electrician Craigieburn";
 const DESC = "A-Grade licensed electrician in Craigieburn, VIC. Lighting, powerpoints, CCTV, alarms and 24/7 emergency repairs. Rated 5.0 from 200+ Google reviews.";
@@ -129,6 +150,17 @@ function Index() {
         </div>
       </section>
 
+      <RecentWork />
+
+      <section id="quote" className="bg-card py-20">
+        <div className="mx-auto max-w-3xl px-5">
+          <p className="text-sm font-semibold uppercase tracking-widest text-primary">Free quote</p>
+          <h2 className="text-display mt-2 text-4xl sm:text-5xl">Tell us about your job.</h2>
+          <p className="mt-3 text-muted-foreground">Leave your details and we'll get back to you with a quote.</p>
+          <div className="mt-8"><QuoteForm /></div>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-6xl px-5 py-20 text-center">
         <h2 className="text-display text-4xl sm:text-6xl">Lights out? <span className="text-primary">Call now.</span></h2>
         <p className="mx-auto mt-4 max-w-md text-muted-foreground">Fast response across Craigieburn, Roxburgh Park, Mickleham and Melbourne's north.</p>
@@ -140,7 +172,7 @@ function Index() {
       <footer className="border-t border-border pb-24 pt-8 sm:pb-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 text-sm text-muted-foreground sm:flex-row sm:justify-between">
           <span className="flex items-center gap-2"><MapPin className="h-4 w-4" /> 10 Northcroft St, Craigieburn VIC 3064</span>
-          <span>© {new Date().getFullYear()} K A K Electricals · REC 21381</span>
+          <span>© {new Date().getFullYear()} K A K Electricals · REC 21381 · <Link to="/admin" className="underline">Owner login</Link></span>
         </div>
       </footer>
 
