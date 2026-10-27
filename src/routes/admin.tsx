@@ -140,7 +140,7 @@ function JobsList() {
     if (!confirm("Delete this job?")) return;
     if (photos.length) await supabase.storage.from(BUCKET).remove(photos);
     const { error } = await supabase.from("jobs").delete().eq("id", id);
-    if (error) return toast.error("Couldn't delete");
+    if (error) { toast.error("Couldn't delete"); return; }
     qc.invalidateQueries({ queryKey: ["jobs"] });
   }
   return (
@@ -181,7 +181,7 @@ function Quotes() {
       <h2 className="text-display text-2xl">Quote requests</h2>
       <div className="mt-4 space-y-3">
         {data?.length === 0 && <p className="text-muted-foreground">No requests yet.</p>}
-        {data?.map((q) => (
+        {data?.map((q: { id: string; name: string; suburb: string; phone: string; email: string | null; details: string; created_at: string }) => (
           <div key={q.id} className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
