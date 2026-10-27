@@ -97,7 +97,7 @@ function Index() {
             <a href={TEL} className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 font-semibold text-primary-foreground shadow-glow">
               <Phone className="h-5 w-5" /> Call {PHONE}
             </a>
-            <a href="#services" className="inline-flex items-center justify-center rounded-full border border-border px-7 py-4 font-semibold">Our services</a>
+            <Link to="/work" className="inline-flex items-center justify-center rounded-full border border-border bg-background/70 px-7 py-4 font-semibold">See recent jobs</Link>
           </div>
           <div className="mt-10 flex items-center gap-3">
             <Stars />
@@ -172,7 +172,7 @@ function Index() {
       <footer className="border-t border-border pb-24 pt-8 sm:pb-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 text-sm text-muted-foreground sm:flex-row sm:justify-between">
           <span className="flex items-center gap-2"><MapPin className="h-4 w-4" /> 10 Northcroft St, Craigieburn VIC 3064</span>
-          <span>© {new Date().getFullYear()} K A K Electricals · REC 21381 · <Link to="/admin" className="underline">Owner login</Link></span>
+          <span>© {new Date().getFullYear()} K A K Electricals · REC 21381</span>
         </div>
       </footer>
 
