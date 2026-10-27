@@ -37,7 +37,7 @@ function AdminPage() {
       setIsAdmin(!!data);
     };
     supabase.auth.getUser().then(({ data }) => check(data.user));
-    const { data: sub } = supabase.auth.onAuthStateChange((e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((e: string, s: { user: User } | null) => {
       if (e === "SIGNED_IN" || e === "SIGNED_OUT") check(s?.user ?? null);
     });
     return () => sub.subscription.unsubscribe();
@@ -93,7 +93,7 @@ function AddJob() {
     const form = e.currentTarget;
     const fd = new FormData(form);
     const parsed = jobSchema.safeParse(Object.fromEntries(fd));
-    if (!parsed.success) return toast.error(parsed.error.issues[0].message);
+    if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Check the form"); return; }
     const files = (fd.getAll("photos") as File[]).filter((f) => f.size > 0);
     setBusy(true);
     try {

@@ -22,12 +22,12 @@ export function QuoteForm() {
     e.preventDefault();
     const form = e.currentTarget;
     const parsed = schema.safeParse(Object.fromEntries(new FormData(form)));
-    if (!parsed.success) return toast.error(parsed.error.issues[0].message);
+    if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Check the form"); return; }
     setBusy(true);
     const { email, ...rest } = parsed.data;
     const { error } = await supabase.from("quote_requests").insert({ ...rest, email: email || null });
     setBusy(false);
-    if (error) return toast.error("Couldn't send — please call us instead.");
+    if (error) { toast.error("Couldn't send — please call us instead."); return; }
     form.reset();
     setDone(true);
   }
