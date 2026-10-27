@@ -6,8 +6,48 @@ import { z } from "zod";
 import { Trash2, LogOut, ArrowLeft } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { BUCKET, jobsQuery, formatJobDate } from "@/lib/jobs";
+
+const credSchema = z.object({
+  email: z.string().trim().email("Enter a valid email").max(255),
+  password: z.string().min(8, "Password must be at least 8 characters").max(72),
+});
+
+function SignIn() {
+  const [busy, setBusy] = useState(false);
+  const { data: ownerExists } = useQuery({
+    queryKey: ["owner-exists"],
+    queryFn: async () => (await supabase.rpc("owner_exists")).data ?? true,
+  });
+  const setup = ownerExists === false;
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const parsed = credSchema.safeParse(Object.fromEntries(new FormData(e.currentTarget)));
+    if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Check the form"); return; }
+    setBusy(true);
+    if (setup) {
+      const { data, error } = await supabase.auth.signUp({ ...parsed.data, options: { emailRedirectTo: window.location.origin + "/admin" } });
+      setBusy(false);
+      if (error) { toast.error(error.message); return; }
+      if (!data.session) toast.success("Check your email to confirm the owner account, then sign in.");
+    } else {
+      const { error } = await supabase.auth.signInWithPassword(parsed.data);
+      setBusy(false);
+      if (error) toast.error("Wrong email or password");
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mx-auto max-w-sm space-y-3 text-center">
+      <h1 className="text-display text-3xl">{setup ? "Create owner account" : "Owner sign in"}</h1>
+      <p className="text-muted-foreground">{setup ? "One-time setup. This becomes the only owner login." : "Sign in to add jobs and view quote requests."}</p>
+      <input name="email" type="email" placeholder="Email" autoComplete="username" className={field} />
+      <input name="password" type="password" placeholder="Password" autoComplete={setup ? "new-password" : "current-password"} className={field} />
+      <button disabled={busy} className="w-full rounded-full bg-primary px-6 py-4 font-semibold text-primary-foreground disabled:opacity-60">{busy ? "Please wait…" : setup ? "Create account" : "Sign in"}</button>
+    </form>
+  );
+}
 
 export const Route = createFileRoute("/admin")({
   ssr: false,
@@ -43,10 +83,6 @@ function AdminPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  async function signIn() {
-    const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin + "/admin" });
-    if (r.error) toast.error("Sign-in failed");
-  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -58,11 +94,7 @@ function AdminPage() {
       </header>
       <main className="mx-auto max-w-4xl px-5 py-10">
         {user === undefined ? <p>Loading…</p> : !user ? (
-          <div className="mx-auto max-w-sm text-center">
-            <h1 className="text-display text-3xl">Owner sign in</h1>
-            <p className="mt-2 text-muted-foreground">Sign in to add jobs and view quote requests.</p>
-            <button onClick={signIn} className="mt-6 w-full rounded-full bg-primary px-6 py-4 font-semibold text-primary-foreground">Continue with Google</button>
-          </div>
+          <SignIn />
         ) : !isAdmin ? (
           <p className="text-center text-muted-foreground">This account ({user.email}) doesn't have owner access.</p>
         ) : (
