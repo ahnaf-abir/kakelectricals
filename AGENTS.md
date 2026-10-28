@@ -12,3 +12,4 @@
 ## Project rules
 - Owner access = `admin` row in `user_roles` (first account to sign in gets it via trigger); all job/quote writes are gated by `has_role` RLS, so UI checks are cosmetic only.
 - Job photos live in the private `job-photos` bucket (public buckets are blocked in this workspace); store object paths in `jobs.photos` and show them via signed URLs.
+- `bun.lock` tarball URLs must stay empty (`""`, default registry); after any install, strip `http://npm-cache.lovable.net/...` URLs because the publish builder cannot resolve that sandbox-only host.
