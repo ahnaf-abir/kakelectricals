@@ -29,6 +29,13 @@
       "when": 1793233697841,
       "tag": "0003_restrict_job_photo_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793233774376,
+      "tag": "0004_validate_quote_requests",
+      "breakpoints": true
     }
   ]
 }
