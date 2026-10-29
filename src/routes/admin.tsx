@@ -7,6 +7,8 @@ import { Trash2, LogOut, ArrowLeft } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { BUCKET, jobsQuery, formatJobDate } from "@/lib/jobs";
+import { useServerFn } from "@tanstack/react-start";
+import { updateOwnerLogin } from "@/lib/owner.functions";
 
 const credSchema = z.object({
   email: z.string().trim().email("Enter a valid email").max(255),
@@ -15,37 +17,87 @@ const credSchema = z.object({
 
 function SignIn() {
   const [busy, setBusy] = useState(false);
-  const { data: ownerExists } = useQuery({
-    queryKey: ["owner-exists"],
-    queryFn: async () => (await supabase.rpc("owner_exists")).data ?? true,
-  });
-  const setup = ownerExists === false;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const parsed = credSchema.safeParse(Object.fromEntries(new FormData(e.currentTarget)));
     if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Check the form"); return; }
     setBusy(true);
-    if (setup) {
-      const { data, error } = await supabase.auth.signUp({ ...parsed.data, options: { emailRedirectTo: window.location.origin + "/admin" } });
-      setBusy(false);
-      if (error) { toast.error(error.message); return; }
-      if (!data.session) toast.success("Check your email to confirm the owner account, then sign in.");
-    } else {
-      const { error } = await supabase.auth.signInWithPassword(parsed.data);
-      setBusy(false);
-      if (error) toast.error("Wrong email or password");
-    }
+    const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    setBusy(false);
+    if (error) toast.error("Wrong email or password");
   }
 
   return (
     <form onSubmit={onSubmit} className="mx-auto max-w-sm space-y-3 text-center">
-      <h1 className="text-display text-3xl">{setup ? "Create owner account" : "Owner sign in"}</h1>
-      <p className="text-muted-foreground">{setup ? "One-time setup. This becomes the only owner login." : "Sign in to add jobs and view quote requests."}</p>
+      <h1 className="text-display text-3xl">Owner sign in</h1>
+      <p className="text-muted-foreground">Sign in to add jobs and view quote requests.</p>
       <input name="email" type="email" placeholder="Email" autoComplete="username" className={field} />
-      <input name="password" type="password" placeholder="Password" autoComplete={setup ? "new-password" : "current-password"} className={field} />
-      <button disabled={busy} className="w-full rounded-full bg-primary px-6 py-4 font-semibold text-primary-foreground disabled:opacity-60">{busy ? "Please wait…" : setup ? "Create account" : "Sign in"}</button>
+      <input name="password" type="password" placeholder="Password" autoComplete="current-password" className={field} />
+      <button disabled={busy} className="w-full rounded-full bg-primary px-6 py-4 font-semibold text-primary-foreground disabled:opacity-60">{busy ? "Please wait…" : "Sign in"}</button>
     </form>
+  );
+}
+
+function Settings({ user }: { user: User }) {
+  const qc = useQueryClient();
+  const update = useServerFn(updateOwnerLogin);
+  const [busy, setBusy] = useState<string | null>(null);
+  const { data: alertEmail } = useQuery({
+    queryKey: ["owner-settings"],
+    queryFn: async () => (await supabase.from("owner_settings").select("quote_alert_email").maybeSingle()).data?.quote_alert_email ?? "",
+  });
+
+  async function saveLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const rawEmail = String(fd.get("email") ?? "").trim();
+    const email = rawEmail && rawEmail !== user.email ? rawEmail : undefined;
+    const password = String(fd.get("password") ?? "") || undefined;
+    if (password && password !== String(fd.get("confirm") ?? "")) return void toast.error("Passwords don't match");
+    const parsed = z.object({ email: z.string().email().optional(), password: z.string().min(8, "Password must be at least 8 characters").optional() }).safeParse({ email, password });
+    if (!parsed.success) return void toast.error(parsed.error.issues[0]?.message ?? "Check the form");
+    if (!email && !password) return void toast.info("Nothing to change");
+    setBusy("login");
+    try {
+      await update({ data: parsed.data });
+      toast.success("Login updated. Use the new details next time you sign in.");
+      if (password) { form.reset(); }
+      await supabase.auth.refreshSession();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update login");
+    } finally { setBusy(null); }
+  }
+
+  async function saveAlert(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const value = String(new FormData(e.currentTarget).get("alert") ?? "").trim();
+    if (value && !z.string().email().safeParse(value).success) return void toast.error("Enter a valid email");
+    setBusy("alert");
+    const { error } = await supabase.from("owner_settings").upsert({ id: true, quote_alert_email: value || null, updated_at: new Date().toISOString() });
+    setBusy(null);
+    if (error) return void toast.error(error.message);
+    toast.success("Quote alert email saved");
+    qc.invalidateQueries({ queryKey: ["owner-settings"] });
+  }
+
+  return (
+    <section className="space-y-6">
+      <h2 className="text-display text-2xl">Settings</h2>
+      <form onSubmit={saveLogin} className="space-y-3 rounded-2xl border border-border p-5">
+        <h3 className="font-semibold">Owner login</h3>
+        <input name="email" type="email" defaultValue={user.email ?? ""} placeholder="Login email" className={field} />
+        <input name="password" type="password" placeholder="New password (leave blank to keep)" autoComplete="new-password" className={field} />
+        <input name="confirm" type="password" placeholder="Confirm new password" autoComplete="new-password" className={field} />
+        <button disabled={busy === "login"} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground disabled:opacity-60">{busy === "login" ? "Saving…" : "Save login"}</button>
+      </form>
+      <form key={alertEmail} onSubmit={saveAlert} className="space-y-3 rounded-2xl border border-border p-5">
+        <h3 className="font-semibold">Send quote requests to</h3>
+        <input name="alert" type="email" defaultValue={alertEmail ?? ""} placeholder="you@example.com" className={field} />
+        <button disabled={busy === "alert"} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground disabled:opacity-60">{busy === "alert" ? "Saving…" : "Save"}</button>
+      </form>
+    </section>
   );
 }
 
@@ -102,6 +154,7 @@ function AdminPage() {
             <AddJob />
             <JobsList />
             <Quotes />
+            <Settings user={user} />
           </div>
         )}
       </main>
