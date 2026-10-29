@@ -15,6 +15,13 @@
       "when": 1793100731504,
       "tag": "0001_owner_exists",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793232831743,
+      "tag": "0002_owner_settings",
+      "breakpoints": true
     }
   ]
 }

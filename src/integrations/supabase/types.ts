@@ -44,6 +44,24 @@ export type Database = {
         }
         Relationships: []
       }
+      owner_settings: {
+        Row: {
+          id: boolean
+          quote_alert_email: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          quote_alert_email?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          quote_alert_email?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quote_requests: {
         Row: {
           created_at: string
