@@ -7,6 +7,8 @@ import { Trash2, LogOut, ArrowLeft } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { BUCKET, jobsQuery, formatJobDate } from "@/lib/jobs";
+import { useServerFn } from "@tanstack/react-start";
+import { updateOwnerLogin } from "@/lib/owner.functions";
 
 const credSchema = z.object({
   email: z.string().trim().email("Enter a valid email").max(255),
@@ -151,6 +153,7 @@ function AdminPage() {
             <AddJob />
             <JobsList />
             <Quotes />
+            <Settings user={user} />
           </div>
         )}
       </main>
