@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Trash2, LogOut, ArrowLeft } from "lucide-react";
+import { Trash2, LogOut, ArrowLeft, Pencil, ImagePlus, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { BUCKET, jobsQuery, formatJobDate } from "@/lib/jobs";
+import { BUCKET, jobsQuery, formatJobDate, type Job } from "@/lib/jobs";
 import { useServerFn } from "@tanstack/react-start";
 import { updateOwnerLogin } from "@/lib/owner.functions";
 
@@ -169,35 +169,76 @@ const jobSchema = z.object({
   notes: z.string().trim().max(3000),
 });
 
+const MAX_BYTES = 10 * 1024 * 1024;
+
+function PhotoPicker({ files, setFiles }: { files: File[]; setFiles: (f: File[]) => void }) {
+  const [previews, setPreviews] = useState<string[]>([]);
+  useEffect(() => {
+    const urls = files.map((f) => URL.createObjectURL(f));
+    setPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [files]);
+  return (
+    <div className="sm:col-span-2">
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold">
+        <ImagePlus className="h-4 w-4" /> Add photos
+        <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => {
+          const picked = Array.from(e.target.files ?? []);
+          const ok = picked.filter((f) => f.size <= MAX_BYTES);
+          if (ok.length < picked.length) toast.error("Some photos are over 10MB and were skipped");
+          setFiles([...files, ...ok]);
+          e.target.value = "";
+        }} />
+      </label>
+      {files.length > 0 && (
+        <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+          {previews.map((u, i) => (
+            <div key={u} className="relative">
+              <img src={u} alt="" className="aspect-square w-full rounded-md object-cover" />
+              <button type="button" aria-label="Remove photo" onClick={() => setFiles(files.filter((_, j) => j !== i))} className="absolute right-1 top-1 rounded-full bg-background/90 p-1"><X className="h-3 w-3" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+async function uploadAll(files: File[], onProgress: (n: number) => void) {
+  const paths: string[] = [];
+  for (const [i, f] of files.entries()) {
+    onProgress(i + 1);
+    const path = `${crypto.randomUUID()}.${f.name.split(".").pop() || "jpg"}`;
+    const { error } = await supabase.storage.from(BUCKET).upload(path, f, { contentType: f.type });
+    if (error) throw error;
+    paths.push(path);
+  }
+  return paths;
+}
+
 function AddJob() {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    const fd = new FormData(form);
-    const parsed = jobSchema.safeParse(Object.fromEntries(fd));
+    const parsed = jobSchema.safeParse(Object.fromEntries(new FormData(form)));
     if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Check the form"); return; }
-    const files = (fd.getAll("photos") as File[]).filter((f) => f.size > 0);
-    setBusy(true);
+    setBusy("Saving…");
     try {
-      const paths: string[] = [];
-      for (const f of files) {
-        const path = `${crypto.randomUUID()}.${f.name.split(".").pop() || "jpg"}`;
-        const { error } = await supabase.storage.from(BUCKET).upload(path, f, { contentType: f.type });
-        if (error) throw error;
-        paths.push(path);
-      }
+      const paths = await uploadAll(files, (n) => setBusy(`Uploading ${n} of ${files.length}`));
       const { error } = await supabase.from("jobs").insert({ ...parsed.data, job_date: parsed.data.job_date || null, photos: paths });
       if (error) throw error;
       form.reset();
+      setFiles([]);
       toast.success("Job added");
       qc.invalidateQueries({ queryKey: ["jobs"] });
     } catch {
       toast.error("Couldn't save the job");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -209,18 +250,68 @@ function AddJob() {
         <input name="suburb" placeholder="Suburb" className={field} />
         <input name="job_date" type="date" className={field} />
         <textarea name="notes" rows={4} placeholder="What was done" className={`${field} sm:col-span-2`} />
-        <label className="sm:col-span-2 text-sm font-medium">Photos
-          <input name="photos" type="file" accept="image/*" multiple className="mt-1 block w-full text-sm" />
-        </label>
-        <button disabled={busy} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground disabled:opacity-60 sm:col-span-2">{busy ? "Saving…" : "Save job"}</button>
+        <PhotoPicker files={files} setFiles={setFiles} />
+        <button disabled={!!busy} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground disabled:opacity-60 sm:col-span-2">{busy ?? "Save job"}</button>
       </form>
     </section>
+  );
+}
+
+function EditJob({ job, onDone }: { job: Job; onDone: () => void }) {
+  const qc = useQueryClient();
+  const [keep, setKeep] = useState(job.photos.map((p, i) => ({ path: p, url: job.photoUrls[i] })));
+  const [files, setFiles] = useState<File[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const parsed = jobSchema.safeParse(Object.fromEntries(new FormData(e.currentTarget)));
+    if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? "Check the form"); return; }
+    setBusy("Saving…");
+    try {
+      const added = await uploadAll(files, (n) => setBusy(`Uploading ${n} of ${files.length}`));
+      const kept = keep.map((k) => k.path);
+      const { error } = await supabase.from("jobs").update({ ...parsed.data, job_date: parsed.data.job_date || null, photos: [...kept, ...added] }).eq("id", job.id);
+      if (error) throw error;
+      const removed = job.photos.filter((p) => !kept.includes(p));
+      if (removed.length) await supabase.storage.from(BUCKET).remove(removed);
+      toast.success("Job updated");
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+      onDone();
+    } catch {
+      toast.error("Couldn't update the job");
+    } finally { setBusy(null); }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-3 bg-muted/40 p-4 sm:grid-cols-2">
+      <input name="title" defaultValue={job.title} placeholder="Title *" className={`${field} sm:col-span-2`} />
+      <input name="suburb" defaultValue={job.suburb} placeholder="Suburb" className={field} />
+      <input name="job_date" type="date" defaultValue={job.job_date ?? ""} className={field} />
+      <textarea name="notes" rows={3} defaultValue={job.notes} placeholder="What was done" className={`${field} sm:col-span-2`} />
+      {keep.length > 0 && (
+        <div className="grid grid-cols-4 gap-2 sm:col-span-2 sm:grid-cols-6">
+          {keep.map((k) => (
+            <div key={k.path} className="relative">
+              {k.url ? <img src={k.url} alt="" className="aspect-square w-full rounded-md object-cover" /> : <div className="aspect-square rounded-md bg-muted" />}
+              <button type="button" aria-label="Remove photo" onClick={() => setKeep(keep.filter((x) => x.path !== k.path))} className="absolute right-1 top-1 rounded-full bg-background/90 p-1"><X className="h-3 w-3" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <PhotoPicker files={files} setFiles={setFiles} />
+      <div className="flex gap-2 sm:col-span-2">
+        <button disabled={!!busy} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground disabled:opacity-60">{busy ?? "Save changes"}</button>
+        <button type="button" onClick={onDone} className="rounded-full border border-border px-6 py-3 font-semibold">Cancel</button>
+      </div>
+    </form>
   );
 }
 
 function JobsList() {
   const qc = useQueryClient();
   const { data } = useQuery(jobsQuery());
+  const [editing, setEditing] = useState<string | null>(null);
   async function del(id: string, photos: string[]) {
     if (!confirm("Delete this job?")) return;
     if (photos.length) await supabase.storage.from(BUCKET).remove(photos);
@@ -234,13 +325,17 @@ function JobsList() {
       <ul className="mt-4 divide-y divide-border rounded-xl border border-border">
         {data?.length === 0 && <li className="p-4 text-muted-foreground">No jobs yet.</li>}
         {data?.map((j) => (
-          <li key={j.id} className="flex items-center gap-3 p-3">
-            {j.photoUrls[0] ? <img src={j.photoUrls[0]} alt="" className="h-14 w-14 rounded-md object-cover" /> : <div className="h-14 w-14 rounded-md bg-muted" />}
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold">{j.title}</p>
-              <p className="text-xs text-muted-foreground">{[j.suburb, formatJobDate(j.job_date)].filter(Boolean).join(" · ")} · {j.photos.length} photo(s)</p>
+          <li key={j.id}>
+            <div className="flex items-center gap-3 p-3">
+              {j.photoUrls[0] ? <img src={j.photoUrls[0]} alt="" className="h-14 w-14 rounded-md object-cover" /> : <div className="h-14 w-14 rounded-md bg-muted" />}
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{j.title}</p>
+                <p className="text-xs text-muted-foreground">{[j.suburb, formatJobDate(j.job_date)].filter(Boolean).join(" · ")} · {j.photos.length} photo(s)</p>
+              </div>
+              <button aria-label="Edit job" onClick={() => setEditing(editing === j.id ? null : j.id)} className="p-2"><Pencil className="h-5 w-5" /></button>
+              <button aria-label="Delete job" onClick={() => del(j.id, j.photos)} className="p-2 text-destructive"><Trash2 className="h-5 w-5" /></button>
             </div>
-            <button aria-label="Delete job" onClick={() => del(j.id, j.photos)} className="p-2 text-destructive"><Trash2 className="h-5 w-5" /></button>
+            {editing === j.id && <EditJob job={j} onDone={() => setEditing(null)} />}
           </li>
         ))}
       </ul>
