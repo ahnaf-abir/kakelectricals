@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { signJobPhotos } from "@/lib/jobs.functions";
 
 export type Job = {
   id: string;
@@ -19,12 +20,8 @@ export async function fetchJobs(limit?: number): Promise<Job[]> {
   const { data, error } = await q;
   if (error) throw error;
   const paths = data.flatMap((j) => j.photos);
-  const urlMap = new Map<string, string>();
-  if (paths.length) {
-    const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrls(paths, 60 * 60 * 24);
-    signed?.forEach((s) => s.path && s.signedUrl && urlMap.set(s.path, s.signedUrl));
-  }
-  return data.map((j) => ({ ...j, photoUrls: j.photos.map((p) => urlMap.get(p)).filter(Boolean) as string[] }));
+  const urlMap: Record<string, string> = paths.length ? await signJobPhotos({ data: { paths } }) : {};
+  return data.map((j) => ({ ...j, photoUrls: j.photos.map((p) => urlMap[p]).filter(Boolean) as string[] }));
 }
 
 export const jobsQuery = (limit?: number) =>
