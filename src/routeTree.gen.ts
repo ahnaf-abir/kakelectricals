@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as WorkRouteImport } from './routes/work'
+import { Route as ApiTmpBootstrapOwnerRouteImport } from './routes/api/tmp-bootstrap-owner'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,44 @@ const WorkRoute = WorkRouteImport.update({
   path: '/work',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTmpBootstrapOwnerRoute = ApiTmpBootstrapOwnerRouteImport.update({
+  id: '/api/tmp-bootstrap-owner',
+  path: '/api/tmp-bootstrap-owner',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/work': typeof WorkRoute
+  '/api/tmp-bootstrap-owner': typeof ApiTmpBootstrapOwnerRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/work': typeof WorkRoute
+  '/api/tmp-bootstrap-owner': typeof ApiTmpBootstrapOwnerRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/work': typeof WorkRoute
+  '/api/tmp-bootstrap-owner': typeof ApiTmpBootstrapOwnerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/work'
+  fullPaths: '/' | '/admin' | '/work' | '/api/tmp-bootstrap-owner'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/work'
-  id: '__root__' | '/' | '/admin' | '/work'
+  to: '/' | '/admin' | '/work' | '/api/tmp-bootstrap-owner'
+  id: '__root__' | '/' | '/admin' | '/work' | '/api/tmp-bootstrap-owner'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   WorkRoute: typeof WorkRoute
+  ApiTmpBootstrapOwnerRoute: typeof ApiTmpBootstrapOwnerRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tmp-bootstrap-owner': {
+      id: '/api/tmp-bootstrap-owner'
+      path: '/api/tmp-bootstrap-owner'
+      fullPath: '/api/tmp-bootstrap-owner'
+      preLoaderRoute: typeof ApiTmpBootstrapOwnerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   WorkRoute: WorkRoute,
+  ApiTmpBootstrapOwnerRoute: ApiTmpBootstrapOwnerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
