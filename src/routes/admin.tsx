@@ -51,10 +51,11 @@ function Settings({ user }: { user: User }) {
   async function saveLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    const fd = Object.fromEntries(new FormData(form)) as Record<string, string>;
-    const email = fd.email.trim() && fd.email.trim() !== user.email ? fd.email.trim() : undefined;
-    const password = fd.password || undefined;
-    if (password && password !== fd.confirm) return void toast.error("Passwords don't match");
+    const fd = new FormData(form);
+    const rawEmail = String(fd.get("email") ?? "").trim();
+    const email = rawEmail && rawEmail !== user.email ? rawEmail : undefined;
+    const password = String(fd.get("password") ?? "") || undefined;
+    if (password && password !== String(fd.get("confirm") ?? "")) return void toast.error("Passwords don't match");
     const parsed = z.object({ email: z.string().email().optional(), password: z.string().min(8, "Password must be at least 8 characters").optional() }).safeParse({ email, password });
     if (!parsed.success) return void toast.error(parsed.error.issues[0]?.message ?? "Check the form");
     if (!email && !password) return void toast.info("Nothing to change");
